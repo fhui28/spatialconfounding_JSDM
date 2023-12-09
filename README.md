@@ -14,7 +14,7 @@ The following directories are currently available in this repository:
 
 -   `models`, which contains `cpp` scripts implementing independent factor analysis and spatial factor analysis/restricted spatial factor analysis (SFA/RSFA), which are subsequently passed into [TMB](https://cran.r-project.org/web/packages/TMB/index.html) for model fitting;
 
--   `application_butterflies`, which contains template scripts to for reproducing the case study results on the Great Britian butterfly data in the manuscript.
+-   `application_butterflies`, which contains template scripts to for reproducing the case study results on the Great Britian butterfly data in the manuscript. Also contained in this directories is a subfolder `plots` which contains some of the plots available in the manuscript.
 
 # If you find any bugs and issues...
 
