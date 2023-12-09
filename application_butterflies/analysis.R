@@ -1,10 +1,18 @@
 #' ---
-#' title: Analysis of Butterflies data from Ovaskainen et al., (2016) using spatial factor analytic models
-#' abstract: Idea is to explore whether spatial confounding is present in the model, and compare how different models handle SC. 
-#' Note the models are set up such that the *species-specific coefficients to the measured environmental predictors are treated as random slopes* ala community-level pool. This is done to bring some stability into the model, otherwise treating them as fixed effects has the tendency to cause issues with standard error calculation.
+#' title: Analysis of Butterflies data from Ovaskainen et al., (2016) using factor analytic models to explore the presence and impacts of spatial confounding.
 #' author: Francis KC Hui
 #' date: Code started July 2023
 #' ---
+
+#' # In preparation for takeoff....
+#' 
+#' The data are sourced from [Wilkinson et al., (2019)](https://doi.org/10.1111/2041-210X.13106) and are publicly available from (https://zenodo.org/records/1452066) under `Datasets/Butterflies` with three files"
+#' - Butterfly_PA.csv
+#' - Butterfly_LatLon_scaled.csv
+#' - Butterfly_Cov.csv
+#' 
+#' The script below assumes these datasets have been loaded into the working directory
+
 
 ##-----------------------
 #' # Load in packages and explore data
@@ -15,36 +23,39 @@ library(patchwork)
 library(TMB) 
 library(INLA) 
 library(DHARMa) 
-library(mgcv) 
+# library(mgcv) 
 library(foreach) 
 library(doParallel) 
 library(corrplot) 
 library(kableExtra) 
 library(Matrix) 
-library(mustashe) 
 registerDoParallel(cores = 6)
 here::i_am("application_butterflies/analysis.R")
 library(here)
 
 
-resp_dat <- read.csv(file = "Butterfly_PA.csv")
+resp_dat <- read.csv(file = here("application_butterflies", "Butterfly_PA.csv"))
 str(resp_dat)
 colSums(resp_dat)
-resp_dat <- resp_dat[,colSums(resp_dat) > 150] 
+resp_dat <- resp_dat[,colSums(resp_dat) > 150] # Subset to most prevalence species. This step removes 10 of 55 species
 str(resp_dat)
 colSums(resp_dat)
 
-cov_dat <- read.csv(file = "Butterfly_Cov.csv")
-longlat <- read.csv(file = "Butterfly_LatLon_scaled.csv")
+
+cov_dat <- read.csv(file = here("application_butterflies", "Butterfly_Cov.csv"))
+longlat <- read.csv(file = here("application_butterflies", "Butterfly_LatLon_scaled.csv"))
 cov_dat <- cbind(longlat, cov_dat[,-1]) # Remove intercept
-cov_dat$blwood <- scale(cov_dat$blwood) %>% as.vector
-cov_dat$conwood <- scale(cov_dat$conwood) %>% as.vector
+summary(cov_dat)
+cov_dat <- cov_dat %>% 
+    mutate(blwood = scale(blwood) %>% as.vector) %>% 
+    mutate(conwood = scale(cov_dat$conwood) %>% as.vector) # Note growing degree days (climate) has already been standardized
 str(cov_dat) 
 
 summary(cov_dat) # Note latitude and longitudes have been scaled and so do not make sense here; so treat them as Euclidean coordinates/distance metric, as per https://doi.org/10.1111/2041-210X.13106
 boxplot(cov_dat)
 
 
+#' ## Some simple spatial plots
 ggplot(cov_dat %>% pivot_longer(-(x:y), names_to = "predictors"), aes(x = x, y = y, color = value)) +
     geom_point() +
     facet_wrap(. ~ predictors, nrow = 4, scales = "free") +
@@ -63,58 +74,54 @@ ggplot(cov_datlong, aes(x = x, y = y, color = value)) +
    scale_color_viridis_c() +
    labs(color = "Value") +
    theme_bw() #+
-ggsave(file = "plots/covariates.pdf", width = 8, height = 4)
+ggsave(file = here("application_butterflies", "plots", "covariates.pdf"), width = 8, height = 4)
 
-#GGally::ggpairs(cov_dat)
 
 ggplot(cbind(longlat, resp_dat)  %>% pivot_longer(-(x:y), names_to = "species"), aes(x = x, y = y, color = value %>% factor)) +
     geom_point() +
     facet_wrap(. ~ species, nrow = 4, scales = "free") +
     scale_color_viridis_d() +
-    theme_bw()
+    theme_bw() # Not really too useful given the number of species...
+
 
 
 #' ## Is there evidence of residual spatial correlation?
-num_spp <- resp_dat %>% ncol
-# for(k0 in 1:num_spp) {
-#     fit_cw <- glm(response ~ climate + blwood + conwood, family = binomial(), #+ chalk_limestone
-#                   data = data.frame(response = resp_dat[,k0], cov_dat))
-#     dotestSAC <- simulateResiduals(fit_cw) %>% testSpatialAutocorrelation(., x = cov_dat$x, y = cov_dat$y, plot = FALSE)
-#     print(dotestSAC)
-#     }
-# rm(fit_cw, dotestSAC)
-# All species exhibit evidence of residual spatial correlation, after accounting for all four covariates!
+num_spp <- resp_dat %>% 
+    ncol
+for(k0 in 1:num_spp) {
+    fit_cw <- glm(response ~ climate + blwood + conwood, family = binomial(), 
+                  data = data.frame(response = resp_dat[,k0], cov_dat))
+    dotestSAC <- simulateResiduals(fit_cw) %>% testSpatialAutocorrelation(., x = cov_dat$x, y = cov_dat$y, plot = FALSE)
+    print(dotestSAC)
+    }
+rm(fit_cw, dotestSAC)
+#' All species exhibit evidence of residual spatial correlation, after accounting for the three covariates, although note the responses are binary!
 
 dev.off()
 
 
 ##-------------------------
 #' # Prepare objects and fit independent GLLVM 
-#' Relevant output saved in an RData file, so **do not need to run**
+#' Fitting is done using Template Model Builder (TMB) -- Maximum likelihood estimation via TMB of the Laplace approximated log-likelihood.
 ##-------------------------
-#' Fitting is done using Template Model Builder (TMB). 
-#' Maximum likelihood estimation via TMB of the Laplace approximated log-likelihood.
-
 X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
 num_lv <- 2
 
-filename <- "TMB_indFA.cpp"
+filename <- here("models", "TMB_indFA.cpp")
 modelname <- strsplit(filename, "\\.")[[1]][1]
 compile(filename)
 dyn.load(dynlib(modelname))
 
 tidbits_data <- list(y = resp_dat %>% as.matrix, 
                      X = X, 
-                     num_lv = num_lv
-                     )
+                     num_lv = num_lv)
 
 blank_loadings <- matrix(0, nrow = num_spp, ncol = num_lv)
 tidbits_parameters <- list(betas = matrix(0, nrow = num_spp, ncol = ncol(X)),
                            alpha = numeric(ncol(X)),
                            log_sds = numeric(ncol(X)),
                            loadings = numeric(sum(lower.tri(blank_loadings, diag = TRUE))),
-                           lvs = matrix(0, nrow = nrow(X), ncol = num_lv)
-                           )
+                           lvs = matrix(0, nrow = nrow(X), ncol = num_lv))
 rm(blank_loadings)
 
 tidbits_random <- c("lvs", "betas")
@@ -123,7 +130,7 @@ tidbits_random <- c("lvs", "betas")
 objs <- MakeADFun(data = tidbits_data, 
                   parameters = tidbits_parameters, 
                   random = tidbits_random, 
-                  DLL = modelname, 
+                  DLL = "TMB_indFA", 
                   hessian = FALSE, 
                   silent = TRUE)
 
@@ -143,8 +150,7 @@ fit_lvm <- nlminb(start = objs$par,
                  gradient = objs$gr, 
                  lower = lowerlim, 
                  upper = upperlim,
-                 #method = "L-BFGS-B",
-                 control = list(iter.max = 100000, eval.max = 10000, trace = 1))
+                 control = list(iter.max = 10000, eval.max = 10000, trace = 1))
 
 indlvm_results <- sdreport(objs) 
 pt_estimates <- as.list(indlvm_results, what = "Estimate", report = TRUE)
@@ -174,31 +180,28 @@ eta_ind <- list(Xbeta = tcrossprod(X, pt_estimates$betas),
     )    
     
 dyn.unload(paste0(modelname,".so"))
-#file.remove(filename, paste0(modelname,".so"), paste0(modelname,".o"))
 gc()
 rm(all_results, pt_estimates, fit_lvm, indlvm_results)
 
 
 save(betaind_results, 
+     alphaind_results,
      eta_ind, 
      loadingind_results, 
      lvind_results, 
-     file = "independentspatialfit.RData")
+     file = here("application_butterflies", "independentspatialfit.RData"))
 
 
 
 ##-------------------------
 #' # Prepare objects and fit unrestricted spatial GLLVM/factor analytic (SFA) model. 
-#' Relevant objects saved in an RData file at the end, so **do not need to run**
-##-------------------------
 #' Fitting is done using Template Model Builder (TMB). Since the spatial domain is not very large (Grampians national park) and given the scaling that has taken place prior to accessing the data, then Euclidean coordinates are assumed. 
 #' Maximum likelihood estimation via TMB of the Laplace approximated log-likelihood, where the Matern covariance is approximated using a SPDE approach.
-#' Standard errors obtained using a generalized Delta method based on the joint covariance of the random effects and parameter estimates
-
+##-------------------------
 X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
 num_lv <- 2
 
-filename <- "TMBINLA_SFA.cpp"
+filename <- here("models", "TMB_SFA.cpp")
 modelname <- strsplit(filename, "\\.")[[1]][1]
 compile(filename)
 dyn.load(dynlib(modelname))
@@ -219,8 +222,7 @@ tidbits_data <- list(y = resp_dat %>% as.matrix,
                      meshidxloc=mesh$idx$loc - 1,
                      G0 = spde$param.inla$M0, 
                      G1 = spde$param.inla$M1, 
-                     G2 = spde$param.inla$M2
-                     )
+                     G2 = spde$param.inla$M2)
 
 blank_loadings <- matrix(0, nrow = num_spp, ncol = num_lv)
 tidbits_parameters <- list(betas = matrix(0, nrow = num_spp, ncol = ncol(X)),
@@ -228,8 +230,7 @@ tidbits_parameters <- list(betas = matrix(0, nrow = num_spp, ncol = ncol(X)),
                            log_sds = numeric(ncol(X)),
                            loadings = numeric(sum(lower.tri(blank_loadings, diag = TRUE))),
                            lvs = matrix(0, nrow = mesh$n, ncol = num_lv),
-                           log_kappa = rep(0, num_lv)
-                           )
+                           log_kappa = rep(0, num_lv))
 rm(blank_loadings, mesh, spde)
 
 tidbits_random <- c("lvs", "betas")
@@ -238,7 +239,7 @@ tidbits_random <- c("lvs", "betas")
 objs <- MakeADFun(data = tidbits_data, 
                   parameters = tidbits_parameters, 
                   random = tidbits_random, 
-                  DLL = modelname, 
+                  DLL = "TMB_SFA", 
                   hessian = FALSE, 
                   silent = TRUE)
 
@@ -293,19 +294,16 @@ loadingSFA_results <- loadingRSFA_results <- pt_estimates$loadings_mat
 eta_SFA <- list(Xbeta = tcrossprod(X, pt_estimates$betas), 
                residual = tcrossprod(pt_estimates$lvs_units, pt_estimates$loadings_mat),
                residual2 = diag(tcrossprod(pt_estimates$loadings_mat)),
-               rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor
-               )
+               rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor)
 
 eta_RSFA <- list(Xbeta = tcrossprod(X, pt_estimates$betas_rsr), 
                  residual = tcrossprod(pt_estimates$lvs_rsr, pt_estimates$loadings_mat),
                  residual2 = diag(tcrossprod(pt_estimates$loadings_mat)),
-                 rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor
-                 )
+                 rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor)
 
 
 
 dyn.unload(paste0(modelname,".so"))
-#file.remove(filename, paste0(modelname,".so"), paste0(modelname,".o"))
 
 rm(Loc, objs, tidbits_parameters, ci_alpha, filename, modelname, lowerlim, upperlim, tidbits_random, splvm_results, fit_splvm, all_results, pt_estimates)
 gc()
@@ -315,265 +313,15 @@ save(betaRSFA_results, betaSFA_results,
      lvSFA_results, lvRSFA_results,
      eta_RSFA, eta_SFA,
      loadingSFA_results, loadingRSFA_results,
-     file = "spatialfit.RData")
+     file = here("application_butterflies", "spatialfit.RData"))
 
 
 
 ##-------------------------
-#' # Prepare objects and fit restricted spatial spatial GLLVM/factor analytic (RSFA) model. 
-#' **Not run since it encounters computational issues, plus alphas (which this model was specifically designed to run to get) are not of interest**
-##-------------------------
-#' Fitting is done using Template Model Builder (TMB). Since the spatial domain is not very large (Grampians national park) and given the scaling that has taken place prior to accessing the data, then Euclidean coordinates are assumed. 
-#' Maximum likelihood estimation via TMB of the Laplace approximated log-likelihood, where the Matern covariance is approximated using a SPDE approach.
-#' Standard errors obtained using a generalized Delta method based on the joint covariance of the random effects and parameter estimates
-
-X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
-num_lv <- 2
-
-filename <- "TMBINLA_RSFA.cpp"
-modelname <- strsplit(filename, "\\.")[[1]][1]
-compile(filename)
-dyn.load(dynlib(modelname))
-
-
-# Create SPDE mesh
-Loc <- cov_dat %>% dplyr::select(x:y)
-mesh <- inla.mesh.create(Loc, plot.delay = NULL, refine = FALSE)
-spde <- inla.spde2.matern(mesh, alpha = 2)
-
-
-tidbits_data <- list(y = resp_dat %>% as.matrix, 
-                     X = X, 
-                     num_lv = num_lv,
-                     residualprojection = diag(nrow = nrow(X)) - X %*% tcrossprod(solve(crossprod(X)), X),
-                     n_i = mesh$n,
-                     meshidxloc=mesh$idx$loc - 1,
-                     G0 = spde$param.inla$M0, 
-                     G1 = spde$param.inla$M1, 
-                     G2 = spde$param.inla$M2
-)
-
-blank_loadings <- matrix(0, nrow = num_spp, ncol = num_lv)
-tidbits_parameters <- list(betas = matrix(0, nrow = num_spp, ncol = ncol(X)),
-                           alpha = numeric(ncol(X)),
-                           log_sds = numeric(ncol(X)),
-                           loadings = numeric(sum(lower.tri(blank_loadings, diag = TRUE))),
-                           lvs = matrix(0, nrow = mesh$n, ncol = num_lv),
-                           log_kappa = rep(0, num_lv)
-)
-rm(blank_loadings, mesh, spde)
-
-tidbits_random <- c("lvs", "betas")
-
-
-objs <- MakeADFun(data = tidbits_data, 
-                  parameters = tidbits_parameters, 
-                  random = tidbits_random, 
-                  DLL = modelname, 
-                  hessian = FALSE, 
-                  silent = TRUE)
-
-blank_loadings <- matrix(0, nrow = ncol(tidbits_data$y), ncol = num_lv)
-rownames(blank_loadings) <- colnames(tidbits_data$y)
-colnames(blank_loadings) <- paste0("LV", 1:num_lv)
-blank_loadings[lower.tri(blank_loadings,diag=TRUE)] <- 1:sum(lower.tri(blank_loadings,diag=TRUE))		
-upperlim <- rep(100, length(objs$par))
-lowerlim <- rep(-100, length(objs$par))
-lowerlim[grep("loadings",names(objs$par))][diag(blank_loadings)] <- 1e-6 ## Constraints on loading matrix    
-rm(blank_loadings)
-
-
-#' ## Fit and gather results
-fit_restrictedsplvm <- nlminb(start = objs$par, 
-                    objective = objs$fn, 
-                    gradient = objs$gr, 
-                    lower = lowerlim, 
-                    upper = upperlim, 
-                    control = list(iter.max = 10000, eval.max = 10000, trace = 1))
-
-
-restrictedsplvm_results <- sdreport(objs)
-pt_estimates <- as.list(restrictedsplvm_results, what = "Estimate", report = TRUE)
-all_results <- summary(restrictedsplvm_results, select = "report", p.value = TRUE)
-
-
-ci_alpha <- 0.05
-betaRSFA_results <- data.frame(all_results[grep("betas$", rownames(all_results)),])
-betaRSFA_results$lower <- betaRSFA_results$Estimate - qnorm(1-ci_alpha/2) * betaRSFA_results$Std
-betaRSFA_results$upper <- betaRSFA_results$Estimate + qnorm(1-ci_alpha/2) * betaRSFA_results$Std
-rownames(betaRSFA_results) <- paste0(rep(colnames(tidbits_data$y), ncol(X)), ":", rep(colnames(X), each = ncol(tidbits_data$y)))
-colnames(betaRSFA_results) <- c("Estimate", "StdErr", "z_value", "P_val", "lower", "upper") 
-
-alphaRSFA_results <- data.frame(all_results[grep("alpha$", rownames(all_results)),])
-alphaRSFA_results$lower <- alphaRSFA_results$Estimate - qnorm(1-ci_alpha/2) * alphaRSFA_results$Std
-alphaRSFA_results$upper <- alphaRSFA_results$Estimate + qnorm(1-ci_alpha/2) * alphaRSFA_results$Std
-rownames(alphaRSFA_results) <- colnames(X)
-colnames(alphaRSFA_results) <- c("Estimate", "StdErr", "z_value", "P_val", "lower", "upper") 
-
-lvRSFA_results <- pt_estimates$lvs_rsr
-loadingRSFA_results <- pt_estimates$loadings_mat
-
-eta_RSFA <- list(Xbeta = tcrossprod(X, pt_estimates$betas), 
-                 residual = tcrossprod(pt_estimates$lvs_rsr, pt_estimates$loadings_mat),
-                 residual2 = diag(tcrossprod(pt_estimates$loadings_mat)),
-                 rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor
-                 )
-
-
-dyn.unload(paste0(modelname,".so"))
-#file.remove(filename, paste0(modelname,".so"), paste0(modelname,".o"))
-
-rm(Loc, objs, tidbits_parameters, ci_alpha, filename, modelname, lowerlim, upperlim, tidbits_random, restrictedsplvm_results, fit_restrictedsplvm, all_results, pt_estimates)
-gc()
-
-save(betaRSFA_results,
-     alphaRSFA_results,
-     lvRSFA_results,
-     eta_SFA,
-     loadingRSFA_results,
-     file = "restrictedspatialfit.RData")
-
-
-
-##-------------------------
-#' # Prepare objects and fit Spatial+ GLLVM: **NOT USED**
-#' Note it is not doing Spatial+ properly for non-Gaussian responses as in the paper. The first step of Spatial+ involves fitting a weighted spatial model to each covariate, with weights from a spatial model of the response itself. However, in a JSDM this causes because the residuals of the covariates from this first stage Spatial+ will then be species-specific. So in the second stage of Spatial+, the X's themselves will be response specific. *So for now our implementation ignores this and is experimental*
-#' Using thin plate splines with k = 300 everywhere, as per [https://doi.org/10.1111/biom.13656]. This lead to very LVs to the SFA model i.e., they were still correlated with measured covariates. On the other hand, the effects of the covariate were more diminished with many no longer statistically significant.
-#' Now trying default number of basis functions. 
-#' Relevant objects saved in an RData file at the end, so **do not need to run**
-##-------------------------
-X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
-num_lv <- 2
-
-#' ## Construct residuals from a spatial model for the strongly spatial/more continuous covariate
-Xfits <- foreach(k0 = 2:ncol(X)) %dopar% gam(covariate ~ s(x, y), data = data.frame(covariate = X[,k0], cov_dat))
-lapply(Xfits, summary) # The covariates are not entirely spatial, even climate. This is good, as it suggests there is potential residual signal for spatial+ to work with?!
-lapply(Xfits, gam.check) # Still needs more according to mgcv
-
-resX <- cbind(X[,1], sapply(Xfits, residuals, type = "response"))
-colnames(resX) <- colnames(X)
-summary(resX)     
-GGally::ggpairs(resX[,-1] %>% as.data.frame())
-ggplot(bind_cols(longlat, resX[,-1]) %>% pivot_longer(-(x:y), names_to = "predictors"), aes(x = x, y = y, color = value)) +
-    geom_point() +
-    facet_wrap(. ~ predictors, nrow = 4, scales = "free") +
-    scale_color_viridis_c() +
-    theme_bw()
-
-
-#' ## Now fit the response model      
-filename <- "TMBINLA_SFA.cpp"
-modelname <- strsplit(filename, "\\.")[[1]][1]
-compile(filename)
-dyn.load(dynlib(modelname))
-
-
-# Create SPDE mesh
-Loc <- cov_dat %>% dplyr::select(x:y)
-mesh <- inla.mesh.create(Loc, plot.delay = NULL, refine = FALSE)
-spde <- inla.spde2.matern(mesh, alpha = 2)
-
-
-tidbits_data <- list(y = resp_dat %>% as.matrix, 
-                     X = resX, 
-                     num_lv = num_lv,
-                     OLSmatrix_transpose = X %*% solve(crossprod(X)), 
-                     residualprojection = diag(nrow = nrow(X)) - X %*% tcrossprod(solve(crossprod(X)), X),
-                     n_i = mesh$n,
-                     meshidxloc=mesh$idx$loc - 1,
-                     G0 = spde$param.inla$M0, 
-                     G1 = spde$param.inla$M1, 
-                     G2 = spde$param.inla$M2)
-
-blank_loadings <- matrix(0, nrow = num_spp, ncol = num_lv)
-tidbits_parameters <- list(betas = matrix(0, nrow = num_spp, ncol = ncol(X)),
-                           alpha = numeric(ncol(X)),
-                           log_sds = numeric(ncol(X)),
-                           loadings = numeric(sum(lower.tri(blank_loadings, diag = TRUE))),
-                           lvs = matrix(0, nrow = mesh$n, ncol = num_lv),
-                           log_kappa = rep(0, num_lv))
-rm(blank_loadings, mesh, spde)
-
-tidbits_random <- c("lvs", "betas")
-
-
-objs <- MakeADFun(data = tidbits_data, 
-                  parameters = tidbits_parameters, 
-                  random = tidbits_random, 
-                  DLL = modelname, 
-                  hessian = FALSE, 
-                  silent = TRUE)
-
-blank_loadings <- matrix(0, nrow = ncol(tidbits_data$y), ncol = num_lv)
-rownames(blank_loadings) <- colnames(tidbits_data$y)
-colnames(blank_loadings) <- paste0("LV", 1:num_lv)
-blank_loadings[lower.tri(blank_loadings,diag=TRUE)] <- 1:sum(lower.tri(blank_loadings,diag=TRUE))		
-upperlim <- rep(Inf, length(objs$par))
-lowerlim <- rep(-Inf, length(objs$par))
-lowerlim[grep("loadings",names(objs$par))][diag(blank_loadings)] <- 1e-6 ## Constraints on loading matrix    
-rm(blank_loadings)
-
-
-#' ## Fit and gather results
-fit_spplus <- nlminb(start = objs$par, 
-                    objective = objs$fn, 
-                    gradient = objs$gr, 
-                    lower = lowerlim, 
-                    upper = upperlim, 
-                    control = list(iter.max = 10000, eval.max = 10000, trace = 1))
-
-
-spplus_results <- sdreport(objs)
-pt_estimates <- as.list(spplus_results, what = "Estimate", report = TRUE)
-all_results <- summary(spplus_results, select = "report", p.value = TRUE)
-
-
-ci_alpha <- 0.05
-betaspplus_results <- data.frame(all_results[grep("betas$", rownames(all_results)),])
-betaspplus_results$lower <- betaspplus_results$Estimate - qnorm(1-ci_alpha/2) * betaspplus_results$Std
-betaspplus_results$upper <- betaspplus_results$Estimate + qnorm(1-ci_alpha/2) * betaspplus_results$Std
-rownames(betaspplus_results) <- paste0(rep(colnames(tidbits_data$y), ncol(X)), ":", rep(colnames(X), each = num_spp))
-colnames(betaspplus_results) <- c("Estimate", "StdErr", "z_value", "P_val", "lower", "upper") 
-
-alphaspplus_results <- data.frame(all_results[grep("alpha$", rownames(all_results)),])
-alphaspplus_results$lower <- alphaspplus_results$Estimate - qnorm(1-ci_alpha/2) * alphaspplus_results$Std
-alphaspplus_results$upper <- alphaspplus_results$Estimate + qnorm(1-ci_alpha/2) * alphaspplus_results$Std
-rownames(alphaspplus_results) <- colnames(X)
-colnames(alphaspplus_results) <- c("Estimate", "StdErr", "z_value", "P_val", "lower", "upper") 
-
-
-lvspplus_results <- pt_estimates$lvs_units
-loadingspplus_results <- pt_estimates$loadings_mat
-
-eta_spplus <- list(Xbeta = tcrossprod(resX, pt_estimates$betas), 
-               residual = tcrossprod(pt_estimates$lvs_units, pt_estimates$loadings_mat),
-               residual2 = diag(tcrossprod(pt_estimates$loadings_mat)),
-               rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor
-               )
-
-               
-dyn.unload(paste0(modelname,".so"))
-#file.remove(filename, paste0(modelname,".so"), paste0(modelname,".o"))
-
-rm(Loc, tidbits_parameters, ci_alpha, filename, modelname, lowerlim, upperlim, tidbits_random, fit_spplus, all_results)
-gc()
-
-
-save(betaspplus_results, 
-     eta_spplus,
-     loadingspplus_results,
-     lvspplus_results, 
-     file = "spatialplusfit_kdefault.RData")
-
-     
-
-##------------------------------
 #' # Explore results for covariate effects and LVs
-##------------------------------
+##-------------------------
 load(file = "independentspatialfit.RData")
 load(file = "spatialfit.RData")
-#load(file = "spatialplusfit_kdefault.RData")
-#load(file = "spatialplusfit_k300.RData")
 
 X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
 num_lv <- 2
@@ -830,9 +578,9 @@ ggsave(p, file = "plots/residualordination.pdf", width = 12, height = 15)
 
 
 
-##------------------------------
+##-------------------------
 #' # Explore results for residual covariance and variance partitioning
-##------------------------------
+##-------------------------
 summary((eta_SFA$Xbeta + eta_SFA$residual) - (eta_RSFA$Xbeta + eta_RSFA$residual))
 # Checks the linear predictor is the same. Good!
 
@@ -892,9 +640,9 @@ corrplot(eta_RSFA$rescov, type = "lower", diag = FALSE, title = "RSFA", mar = c(
 
 
 
-##----------------------
+##-------------------------
 sessionInfo()
-##----------------------
+##-------------------------
 # R version 4.1.2 (2021-11-01)
 # Platform: x86_64-pc-linux-gnu (64-bit)
 # Running under: Linux Mint 21.1
