@@ -4,7 +4,7 @@
 #' date: Code started July 2023
 #' ---
 
-#' # In preparation for takeoff....
+#' # In preparation for takeoff
 #' 
 #' The data are sourced from [Wilkinson et al., (2019)](https://doi.org/10.1111/2041-210X.13106) and are publicly available from (https://zenodo.org/records/1452066) under `Datasets/Butterflies` with three files"
 #' - Butterfly_PA.csv
@@ -27,7 +27,7 @@ library(DHARMa)
 library(foreach) 
 library(doParallel) 
 library(corrplot) 
-library(kableExtra) 
+#library(kableExtra) 
 library(Matrix) 
 registerDoParallel(cores = 6)
 here::i_am("application_butterflies/analysis.R")
@@ -318,18 +318,18 @@ save(betaRSFA_results, betaSFA_results,
 
 
 ##-------------------------
-#' # Explore results for covariate effects and LVs
+#' # Explore results for covariate effects
 ##-------------------------
-load(file = "independentspatialfit.RData")
-load(file = "spatialfit.RData")
+load(file = here("application_butterflies", "independentspatialfit.RData"))
+load(file = here("application_butterflies", "spatialfit.RData"))
 
 X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
 num_lv <- 2
+num_spp <- ncol(resp_dat)
 
 tidbits_data <- list(y = resp_dat %>% as.matrix, 
                      X = X, 
-                     num_lv = num_lv
-                     )
+                     num_lv = num_lv)
 
 spp_names <- c("small.tortoiseshell", "orange.tip", "ringlet", "dgreen.fritillary",  
                "swashed.fritillary", "brown.argus", "nbrown.argus", 
@@ -348,13 +348,12 @@ spp_names <- c("small.tortoiseshell", "orange.tip", "ringlet", "dgreen.fritillar
     str_to_title()
 
 
+
 #' ## Plots of 95% Wald intervals for covariate effects
 results_dat <- rbind(
                      betaind_results[-(1:num_spp),], 
                      betaSFA_results[-(1:num_spp),], 
-                     betaRSFA_results[-(1:num_spp),]
-                     #betaspplus_results[-(1:num_spp),]
-                     ) %>%
+                     betaRSFA_results[-(1:num_spp),]) %>%
     rownames_to_column() %>%
     mutate(sig = P_val < 0.05) %>%
     mutate(species = rep(rep(colnames(tidbits_data$y), ncol(X)-1), 3) %>% fct_inorder) %>%
@@ -380,10 +379,10 @@ ggplot(data = results_dat,
    theme(axis.text.x = element_text(angle=45, hjust=1), legend.position = "bottom") +
    coord_flip() +
    guides(fill = guide_legend(nrow = 2, byrow = TRUE))
-ggsave(file = "plots/caterpillarcoefficients.pdf", width = 8, height = 10)
+ggsave(file = here("application_butterflies", "plots", "caterpillarcoefficients.pdf"), width = 8, height = 10)
 
 
-#' ## Tile plot of regression  coefficients only
+#' ## Tile plot of regression coefficients only
 tile_climate <- ggplot(results_dat %>% filter(predictors == "GDD"), #%>% mutate(Estimate2 = ifelse(sig == 1, Estimate, 0)), 
        aes(x = model, y = species, fill = Estimate)) +
    geom_tile(linetype = 0) + 
@@ -420,8 +419,7 @@ tile_cwoodland <- ggplot(results_dat %>% filter(predictors == "Coniferous woodla
 p <- (tile_climate / tile_bwoodland / tile_cwoodland)
 p
 
-ggsave(file = "plots/tilecoefficients.pdf", width = 10, height = 12)
-
+ggsave(file = here("application_butterflies", "plots", "tilecoefficients.pdf"), width = 10, height = 12)
 rm(p)
 
 
@@ -429,109 +427,101 @@ results_dat %>%
     group_by(predictors, model) %>% 
     summarise(mean = mean(sig))
 
-results_dat %>% 
-    group_by(predictors, model) %>% 
-    summarise(mean = mean(sig)) %>% 
-   kbl(format = "latex", caption = "", digits = 3, 
-       col.names = c("Predictor", "Model", "Proportion of significant results"), 
-       align = "lrr",
-       label = "tab:butterfly_propsigresults",
-       booktabs = TRUE,
-       centering = TRUE)
-#' There are some but not too many differences between SFA, RSFA, and independence in terms of whether or not there is statistically clear evidence of covariate effects for different species. Independent and RSFA models behave more similarly to each other compared to FA, with statistically clear evidence that climate and blwood are important for many species, and less so for conwood. SFA however declares much less species significant for all three predictors. 
-#' For conwood, RSFAS declares the most number of species as statistically significant, many more than SFA and independence model. 
-# # Finally SFA+ is probably the most different out of the four methods, as it tends to declare many things to be not statistically significant. Arguably it behaves closest to SFA, especially for blwood and which is to be expected, but it is also more conservative than all other methods, especially for climate.
 
 
-ggplot(results_dat, aes(x = model, y = StdErr)) +
-   geom_boxplot() +
-   geom_point() +
-   ggbeeswarm::geom_beeswarm() +
-   labs(x = "Model", y = "Standard Errors") +
-   facet_wrap(predictors ~ ., nrow = 1, scales = "free") +
-   theme_bw()
-ggsave(file = "plots/intervalwidths.pdf", width = 8, height = 5)
-#' Interestingly the widths are SFA intervals are generally narrower for climate and blwood. Interval widths are more similar for independent and RSFA models, and if anything the standard errors are largest for the independence model.  SFA+ has the least variable of the CI widths, much smaller than all three other methods.
+##-------------------------
+#' # Explore results for residual between-species correlation and variance partitioning
+##-------------------------
+summary((eta_SFA$Xbeta + eta_SFA$residual) - (eta_RSFA$Xbeta + eta_RSFA$residual))
+# Checks the linear predictor is the same. Good!
 
-ggplot(results_dat %>% 
-           mutate(width = upper - lower) %>% 
-           dplyr::select(species:width) %>% 
-           pivot_wider(names_from = model, values_from = width) %>% 
-           mutate(ratio = RSFA/SFA),
-       aes(x = predictors, y = ratio)) +
-    geom_boxplot() +
+
+varpart_ind <- data.frame(Xbeta = apply(eta_ind$Xbeta, 2, var), LV = eta_ind$residual2) %>% #LV = apply(eta_ind$residual, 2, var)
+    apply(., 1, prop.table) %>% 
+    data.frame
+varpart_SFA <- data.frame(Xbeta = apply(eta_SFA$Xbeta, 2, var), LV = eta_SFA$residual2) %>% #LV = apply(eta_SFA$residual, 2, var)
+    apply(., 1, prop.table) %>% 
+    data.frame
+varpart_RSFA <- data.frame(Xbeta = apply(eta_RSFA$Xbeta, 2, var), LV = eta_RSFA$residual2) %>% #LV = apply(eta_RSFA$residual, 2, var)
+    apply(., 1, prop.table) %>% 
+    data.frame
+colnames(varpart_ind) <- colnames(varpart_SFA) <- colnames(varpart_RSFA) <- colnames(resp_dat)
+
+round(varpart_ind, 3)
+round(varpart_SFA, 3)
+round(varpart_RSFA, 3)
+
+
+# Construct a nice stacked barplot representing the variance partitioning
+v_pretty <- rbind(varpart_ind[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component"), 
+                  varpart_SFA[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component"), 
+                  varpart_RSFA[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component")) %>% 
+    as.data.frame %>% 
+    mutate(model = rep(c("Independent","SFA","RSFA"), each = 2)) %>% 
+    pivot_longer(-c("component","model"), names_to = "Species") %>% 
+    mutate(Species = fct_inorder(Species), model = fct_inorder(model), component = fct_inorder(component))
+levels(v_pretty$Species) <- spp_names
+levels(v_pretty$component) <- c("Covariates", "Latent factors")
+
+
+ggplot(v_pretty, aes(x = Species, y = value, fill = component)) +
+    geom_bar(position = "stack", stat = "identity") +
+    labs(x = "Species", y = "Proportion", fill = "Model component") + 
     theme_bw() +
-    labs(x = "Predictors", y = "Ratio (RSFA/SFA)") +
-    geom_hline(yintercept = 1, linetype = 2, col = "darkgrey")
-
-results_dat %>% 
-           dplyr::select(StdErr, species:model) %>% 
-           pivot_wider(names_from = model, values_from = StdErr) %>% 
-           mutate(ratioRSFA = RSFA/SFA, ratioindependent = Independent/SFA) %>%
-           group_by(predictors) %>%
-           summarise(meanRSFA = mean(ratioRSFA), meanIndependent = mean(ratioindependent))
-# Interestingly the intervals are quite similar in this dataset between RSFA and SFA. However these results are not necessarily generalizable, especially given the known results in the existing literature. 
+    facet_wrap(. ~ model, nrow = 4) +
+    scale_fill_viridis_d() +
+    labs(y = "Variance") +
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 70, hjust = 1))
+ggsave(file = here("application_butterflies", "plots", "variancepartition.pdf"), width = 8, height = 8)
 
 
+par(mfrow = c(2,2))
+corrplot(eta_ind$rescov, type = "lower", diag = FALSE, title = "Independent", mar = c(2,5,2,2))
+corrplot(eta_SFA$rescov, type = "lower", diag = FALSE, title = "SFA", mar = c(2,5,2,2))
+corrplot(eta_RSFA$rescov, type = "lower", diag = FALSE, title = "RSFA", mar = c(2,5,2,2))
+# These empirical residual covariances between all three models are fairly similar though. In fact, and defining the residual correlation as based solely on the loading matrix, SFA and RSFA should produce basically the set of results. However, it is important to acknowledge that such a correlation construct may not make much sense in a *spatial* factor analysis and variation thereof though.
 
-#' ## Plots of point estimates for latent variables
-results_dat <- rbind(lvind_results, lvSFA_results, lvRSFA_results) %>% #lvspplus_results
+
+
+##-------------------------
+#' # Explore results for model-based residual ordination
+##-------------------------
+
+results_dat <- rbind(lvind_results, lvSFA_results, lvRSFA_results) %>%
     as.data.frame()
 colnames(results_dat)[1:num_lv] <- paste("Factor", 1:num_lv)
-results_dat$model <- rep(c("independent", "SFA", "RSFA"), each = nrow(X)) %>% fct_inorder #"SFA+"
+results_dat$model <- rep(c("independent", "SFA", "RSFA"), each = nrow(X)) %>% fct_inorder 
 results_dat$x <- rep(cov_dat$x, 3)
 results_dat$y <- rep(cov_dat$y, 3)
 
 allcors <- rbind(
    data.frame(Model = "Independent", LV = paste("Factor", 1:2), cor(lvind_results, X[,-1])), 
    data.frame(Model = "SFA", LV = paste("Factor", 1:2), cor(lvSFA_results, X[,-1])), 
-   data.frame(Model = "RSFA", LV = paste("Factor", 1:2), cor(lvRSFA_results, X[,-1]))
-   #data.frame(Model = "Spatial+", LV = paste("Factor", 1:2), cor(lvspplus_results, X[,-1]))
-    ) %>% 
+   data.frame(Model = "RSFA", LV = paste("Factor", 1:2), cor(lvRSFA_results, X[,-1]))) %>% 
    pivot_longer(climate:conwood, names_to = "Predictors") %>% 
    mutate(Predictors = fct_inorder(Predictors), Model = fct_inorder(Model))
 levels(allcors$Predictors) <- c("Climate", "Broadleaved woodland", "Coniferous woodland")
+
 allcors <- allcors %>% 
-   arrange(Predictors, Model, LV) %>% 
-   relocate(Predictors, Model, LV, value)
-
-allcors %>% 
+    arrange(Predictors, Model, LV) %>% 
+    relocate(Predictors, Model, LV, value) %>% 
     as.data.frame()
+allcors    
 
-
-kbl(allcors, format = "latex", caption = "", digits = 3, 
-    col.names = c("Predictors", "Model", "Factor", "Correlation"), 
-    align = "lllr",
-    label = "tab:lvcorrelation",
-    booktabs = TRUE,
-    centering = TRUE)
-#' Notice the SFA and SFA+ predicted LVs are strongly correlated with climate and to a lesser extent with blwood, and the correlations are not small (suggesting confounding is present to some extent). RSFA forces orthgonality. The predicted LVs from the independence model also exhibit fairly much weaker correlation with the covariates. 
-#' Finally, the predicted LVs from the SFA+ model plus exhibits strong correlations with the three predictors, even more so than the SFA model. This is perhaps not surprising, given it SFA+ is actually designed to make the LVs orthogonal to the residual projected predictors, which is in fact what we see. This reflects what SFA+ in essence tries to do i.e., move all the spatial variation in X to the spatial random effect...
-
-
-ggplot(results_dat %>% pivot_longer("Factor 1":"Factor 2", names_to = "Factor"), aes(x = model, y = value)) +
-    geom_violin() +
-    #ggbeeswarm::geom_beeswarm(color = "darkgrey") +
-    geom_hline(yintercept = 0, color = "darkblue", linetype = 2) +
-    facet_wrap(. ~ Factor) +
-    theme_bw()
 
 results_dat %>% 
     pivot_longer("Factor 1":"Factor 2", names_to = "Factor") %>%
     group_by(model, Factor) %>%
     summarise(mean = mean(value) %>% round(3), median = median(value) %>% round(3))
-# Shows that RSR tends to produce more centered LVs for residual ordination, as expected. By contrast, the SFA and SFA+ models tend to exhibit a overall strong non-zero location effect. We can come back to this issue for basic unconstrained ordination...
 
 levels(results_dat$model)[1] <- "Independent"
-ggplot(results_dat %>% pivot_longer("Factor 1":"Factor 2", names_to = "Factor"), aes(x = x, y = y, color = value)) + #%>% filter(model != "SFA+")
+ggplot(results_dat %>% pivot_longer("Factor 1":"Factor 2", names_to = "Factor"), aes(x = x, y = y, color = value)) + 
     geom_point() +
     scale_color_viridis_c() +
     facet_wrap(Factor ~ model, nrow = 2) +
    labs(color = "Value") +
     theme_bw()
-ggsave(file = "plots/LVwithlongitudelatitude.pdf", width = 8, height = 8)
-# The north-south spatial pattern of the predicted LVs from SFA quite obvious, especially for the first LV. The similarlity to the pattern to climate is clear. This pattern also occurs but to a much lesser with the SFA+ plus. 
-# This north-south pattern is not present in the RSFA or independence model, although RSFA exhibiting a noticeable east-west spatial pattern for LV1 (and analogously but to a lesser extent for LV2 i nthe independence model). Finally, given the above correlations, we do see that the LVs in the SFA+ model exhibits a spatial pattern that contains the spatial patterns of the predictors as well!
+ggsave(file = here("application_butterflies", "plots", "LVwithlongitudelatitude.pdf"), width = 8, height = 8)
 
 
 ordinationp_climate <- ggplot(results_dat %>% 
@@ -566,77 +556,7 @@ ordinationp_conwood <- ggplot(results_dat %>%
 
 
 p <- ordinationp_climate / ordinationp_blwood / ordinationp_conwood
-ggsave(p, file = "plots/residualordination.pdf", width = 12, height = 15)
-
-# ggplot(results_dat %>% 
-#            rename(f1 = "Factor 1", f2 = "Factor 2") %>% 
-#            left_join(., bind_cols(X[,-1], longlat), by = c("x","y")), aes(x = f1, y = f2, z = climate)) + 
-#     stat_summary_hex(bins = 50) +
-#     scale_color_viridis_c() +
-#     facet_wrap(. ~ model, nrow = 1) +
-#     theme_bw()
-
-
-
-##-------------------------
-#' # Explore results for residual covariance and variance partitioning
-##-------------------------
-summary((eta_SFA$Xbeta + eta_SFA$residual) - (eta_RSFA$Xbeta + eta_RSFA$residual))
-# Checks the linear predictor is the same. Good!
-
-
-varpart_ind <- data.frame(Xbeta = apply(eta_ind$Xbeta, 2, var), LV = eta_ind$residual2) %>% #LV = apply(eta_ind$residual, 2, var)
-    apply(., 1, prop.table) %>% 
-    data.frame
-varpart_SFA <- data.frame(Xbeta = apply(eta_SFA$Xbeta, 2, var), LV = eta_SFA$residual2) %>% #LV = apply(eta_SFA$residual, 2, var)
-    apply(., 1, prop.table) %>% 
-    data.frame
-varpart_RSFA <- data.frame(Xbeta = apply(eta_RSFA$Xbeta, 2, var), LV = eta_RSFA$residual2) %>% #LV = apply(eta_RSFA$residual, 2, var)
-    apply(., 1, prop.table) %>% 
-    data.frame
-# varpart_spplus <- data.frame(Xbeta = apply(eta_spplus$Xbeta, 2, var), LV = eta_spplus$residual2) %>%
-#     apply(., 1, prop.table) %>%
-#     data.frame
-colnames(varpart_ind) <- colnames(varpart_SFA) <- colnames(varpart_RSFA) <- colnames(resp_dat)
-
-round(varpart_ind, 3)
-round(varpart_SFA, 3)
-round(varpart_RSFA, 3)
-#round(varpart_spplus, 3)
-
-
-# Construct a nice stacked barplot representing the variance partitioning
-v_pretty <- rbind(varpart_ind[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component"), 
-                  varpart_SFA[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component"), 
-                  varpart_RSFA[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component")
-                  #varpart_spplus[,order(varpart_sp[2,])] %>% rownames_to_column(var = "component")
-                  ) %>% 
-    as.data.frame %>% 
-    mutate(model = rep(c("Independent","SFA","RSFA"), each = 2)) %>% #"SFA+"
-    pivot_longer(-c("component","model"), names_to = "Species") %>% 
-    mutate(Species = fct_inorder(Species), model = fct_inorder(model), component = fct_inorder(component))
-levels(v_pretty$Species) <- spp_names
-levels(v_pretty$component) <- c("Covariates", "Latent factors")
-
-
-ggplot(v_pretty %>% filter(model != "SFA+"), aes(x = Species, y = value, fill = component)) +
-    geom_bar(position = "stack", stat = "identity") +
-    labs(x = "Species", y = "Proportion", fill = "Model component") + #Percentage of variance explained
-    theme_bw() +
-    facet_wrap(. ~ model, nrow = 4) +
-    scale_fill_viridis_d() +
-   labs(y = "Variance") +
-    theme(legend.position = "bottom", axis.text.x = element_text(angle = 70, hjust = 1))
-ggsave(file = "plots/variancepartition.pdf", width = 8, height = 8)
-# For almost all species, the independence and RSFA models pushes more of the variance to be explained into measured predictors. In fact the results between these two models are fairly similar in terms of variance partitioning. By contrast, the SFA+ model has basically all the variation in the data explained by the LVs component. That being said, variance partitioning in the SFA+ model does not make much sense though since you are partitioning the model into a part explained by the residual projection of the X. This is not comparable to the other three models, let alone whether it makes sense or not?!
-
-
-par(mfrow = c(2,2))
-corrplot(eta_ind$rescov, type = "lower", diag = FALSE, title = "Independent", mar = c(2,5,2,2))
-corrplot(eta_SFA$rescov, type = "lower", diag = FALSE, title = "SFA", mar = c(2,5,2,2))
-corrplot(eta_RSFA$rescov, type = "lower", diag = FALSE, title = "RSFA", mar = c(2,5,2,2))
-#corrplot(eta_spplus$rescov, type = "lower", diag = FALSE, title = "SFA+", mar = c(2,5,2,2))
-# These empirical residual covariances between all three models are fairly similar though. In fact, and defining the residual correlation as based solely on the loading matrix, SFA and RSFA should produce basically the set of results. However, it is important to acknowledge that such a correlation construct may not make much sense in a *spatial* factor analysis and variation thereof though...The SFA+ model produces the most different pattern in terms of ordinations
+ggsave(p, file = here("application_butterflies", "plots", "residualordination.pdf"), width = 12, height = 15)
 
 
 
