@@ -1,7 +1,7 @@
 #' ---
-#' title: Analysis of Butterflies data from Ovaskainen et al., (2016) using factor analytic models to explore the presence and impacts of spatial confounding.
+#' title: Analysis of Butterflies data from Ovaskainen et al., (2016) using factor analytic models to explore the presence and impacts of spatial confounding on model-based unconstrained ordination only
 #' author: Francis KC Hui
-#' date: Code started July 2023
+#' date: Code started December 2023
 #' ---
 
 #' # In preparation for takeoff
@@ -30,7 +30,7 @@ library(corrplot)
 #library(kableExtra) 
 library(Matrix) 
 registerDoParallel(cores = 6)
-here::i_am("application_butterflies/analysis.R")
+here::i_am("application_butterflies/analysis_unconstrainedordination.R")
 library(here)
 
 
@@ -63,17 +63,17 @@ ggplot(cov_dat %>% pivot_longer(-(x:y), names_to = "predictors"), aes(x = x, y =
     theme_bw()
 
 cov_datlong <- cov_dat %>% 
-   pivot_longer(-(x:y), names_to = "predictors") %>% 
-   filter(predictors != "chalk_limestone") %>% 
-   mutate(predictors = fct_inorder(predictors)) 
+    pivot_longer(-(x:y), names_to = "predictors") %>% 
+    filter(predictors != "chalk_limestone") %>% 
+    mutate(predictors = fct_inorder(predictors)) 
 levels(cov_datlong$predictors) <- c("GDD", "Broadleaved woodland", "Coniferous woodland")
 
 ggplot(cov_datlong, aes(x = x, y = y, color = value)) +
-   geom_point() +
-   facet_wrap(. ~ predictors, nrow = 1, scales = "free") +
-   scale_color_viridis_c() +
-   labs(color = "Value") +
-   theme_bw() #+
+    geom_point() +
+    facet_wrap(. ~ predictors, nrow = 1, scales = "free") +
+    scale_color_viridis_c() +
+    labs(color = "Value") +
+    theme_bw() #+
 ggsave(file = here("application_butterflies", "plots", "covariates.pdf"), width = 8, height = 4)
 
 
@@ -93,24 +93,27 @@ for(k0 in 1:num_spp) {
                   data = data.frame(response = resp_dat[,k0], cov_dat))
     dotestSAC <- simulateResiduals(fit_cw) %>% testSpatialAutocorrelation(., x = cov_dat$x, y = cov_dat$y, plot = FALSE)
     print(dotestSAC)
-    }
+}
 rm(fit_cw, dotestSAC)
 #' All species exhibit evidence of residual spatial correlation, after accounting for the three covariates, although note the responses are binary!
 
 dev.off()
 
 
+
+
 ##-------------------------
 #' # Prepare objects and fit independent GLLVM 
 #' Fitting is done using Template Model Builder (TMB) -- Maximum likelihood estimation via TMB of the Laplace approximated log-likelihood.
 ##-------------------------
-X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
+X <- model.matrix(~ 1, data = cov_dat) 
 num_lv <- 2
 
 filename <- here("models", "TMB_indFA.cpp")
 modelname <- strsplit(filename, "\\.")[[1]][1]
 compile(filename)
 dyn.load(dynlib(modelname))
+
 
 tidbits_data <- list(y = resp_dat %>% as.matrix, 
                      X = X, 
@@ -146,11 +149,11 @@ rm(blank_loadings)
 
 #' ## Fit and gather results
 fit_lvm <- nlminb(start = objs$par, 
-                 objective = objs$fn, 
-                 gradient = objs$gr, 
-                 lower = lowerlim, 
-                 upper = upperlim,
-                 control = list(iter.max = 10000, eval.max = 10000, trace = 1))
+                  objective = objs$fn, 
+                  gradient = objs$gr, 
+                  lower = lowerlim, 
+                  upper = upperlim,
+                  control = list(iter.max = 10000, eval.max = 10000, trace = 1))
 
 indlvm_results <- sdreport(objs) 
 pt_estimates <- as.list(indlvm_results, what = "Estimate", report = TRUE)
@@ -164,7 +167,7 @@ betaind_results$upper <- betaind_results$Estimate + qnorm(1-ci_alpha/2) * betain
 rownames(betaind_results) <- paste0(rep(colnames(tidbits_data$y), ncol(X)), ":", rep(colnames(X), each = ncol(tidbits_data$y)))
 colnames(betaind_results) <- c("Estimate", "StdErr", "z_value", "P_val", "lower", "upper") 
 
-alphaind_results <- data.frame(all_results[grep("alpha$", rownames(all_results)),])
+alphaind_results <- data.frame(all_results[grep("alpha$", rownames(all_results)),,drop=FALSE])
 alphaind_results$lower <- alphaind_results$Estimate - qnorm(1-ci_alpha/2) * alphaind_results$Std
 alphaind_results$upper <- alphaind_results$Estimate + qnorm(1-ci_alpha/2) * alphaind_results$Std
 rownames(alphaind_results) <- colnames(X)
@@ -174,10 +177,10 @@ lvind_results <- pt_estimates$lvs
 loadingind_results <- pt_estimates$loadings_mat
 
 eta_ind <- list(Xbeta = tcrossprod(X, pt_estimates$betas), 
-    residual = tcrossprod(pt_estimates$lvs, pt_estimates$loadings_mat), 
-    residual2 = diag(tcrossprod(pt_estimates$loadings_mat)),
-    rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor)    
-    
+                residual = tcrossprod(pt_estimates$lvs, pt_estimates$loadings_mat), 
+                residual2 = diag(tcrossprod(pt_estimates$loadings_mat)),
+                rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor)    
+
 dyn.unload(paste0(modelname,".so"))
 gc()
 rm(all_results, pt_estimates, fit_lvm, indlvm_results)
@@ -188,8 +191,7 @@ save(betaind_results,
      eta_ind, 
      loadingind_results, 
      lvind_results, 
-     file = here("application_butterflies", "independentspatialfit.RData"))
-
+     file = here("application_butterflies", "unconstrainedordination_independentspatialfit.RData"))
 
 
 ##-------------------------
@@ -197,7 +199,7 @@ save(betaind_results,
 #' Fitting is done using Template Model Builder (TMB). Since the spatial domain is not very large (Grampians national park) and given the scaling that has taken place prior to accessing the data, then Euclidean coordinates are assumed. 
 #' Maximum likelihood estimation via TMB of the Laplace approximated log-likelihood, where the Matern covariance is approximated using a SPDE approach.
 ##-------------------------
-X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
+X <- model.matrix(~ 1, data = cov_dat) 
 num_lv <- 2
 
 filename <- here("models", "TMB_SFA.cpp")
@@ -291,9 +293,9 @@ lvRSFA_results <- pt_estimates$lvs_rsr
 loadingSFA_results <- loadingRSFA_results <- pt_estimates$loadings_mat
 
 eta_SFA <- list(Xbeta = tcrossprod(X, pt_estimates$betas), 
-               residual = tcrossprod(pt_estimates$lvs_units, pt_estimates$loadings_mat),
-               residual2 = diag(tcrossprod(pt_estimates$loadings_mat)),
-               rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor)
+                residual = tcrossprod(pt_estimates$lvs_units, pt_estimates$loadings_mat),
+                residual2 = diag(tcrossprod(pt_estimates$loadings_mat)),
+                rescov = tcrossprod(pt_estimates$loadings_mat) %>% cov2cor)
 
 eta_RSFA <- list(Xbeta = tcrossprod(X, pt_estimates$betas_rsr), 
                  residual = tcrossprod(pt_estimates$lvs_rsr, pt_estimates$loadings_mat),
@@ -312,23 +314,23 @@ save(betaRSFA_results, betaSFA_results,
      lvSFA_results, lvRSFA_results,
      eta_RSFA, eta_SFA,
      loadingSFA_results, loadingRSFA_results,
-     file = here("application_butterflies", "spatialfit.RData"))
+     file = here("application_butterflies", "unconstrainedordination_spatialfit.RData"))
 
 
 
-##-------------------------
-#' # Explore results for covariate effects
-##-------------------------
-load(file = here("application_butterflies", "independentspatialfit.RData"))
-load(file = here("application_butterflies", "spatialfit.RData"))
+##------------------------------
+#' # Explore results for unconstrained ordination
+##------------------------------
+load(file = here("application_butterflies", "unconstrainedordination_independentspatialfit.RData"))
+load(file = here("application_butterflies", "unconstrainedordination_spatialfit.RData"))
 
-X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
+X <- model.matrix(~ 1, data = cov_dat) 
 num_lv <- 2
-num_spp <- ncol(resp_dat)
 
 tidbits_data <- list(y = resp_dat %>% as.matrix, 
                      X = X, 
                      num_lv = num_lv)
+
 
 spp_names <- c("small.tortoiseshell", "orange.tip", "ringlet", "dgreen.fritillary",  
                "swashed.fritillary", "brown.argus", "nbrown.argus", 
@@ -348,164 +350,31 @@ spp_names <- c("small.tortoiseshell", "orange.tip", "ringlet", "dgreen.fritillar
 
 
 
-#' ## Plots of 95% Wald intervals for covariate effects
-results_dat <- rbind(
-                     betaind_results[-(1:num_spp),], 
-                     betaSFA_results[-(1:num_spp),], 
-                     betaRSFA_results[-(1:num_spp),]) %>%
-    rownames_to_column() %>%
-    mutate(sig = P_val < 0.05) %>%
-    mutate(species = rep(rep(colnames(tidbits_data$y), ncol(X)-1), 3) %>% fct_inorder) %>%
-    mutate(predictors = rep(rep(colnames(X)[-1], each = num_spp), 3) %>% fct_inorder) %>%
-    mutate(model = rep(c("Independent", "SFA", "RSFA"), each = (ncol(X)-1)*num_spp) %>% fct_inorder) 
-levels(results_dat$predictors) <- c("GDD", "Broadleaved woodland", "Coniferous woodland")
-levels(results_dat$species) <- spp_names
-    
-    
-myColors <- c("slateblue","coral3")
-names(myColors) <- levels(results_dat$sig)
-
-ggplot(data = results_dat, 
-       aes(x = species, y = Estimate, col = sig, Lower = lower, Upper = upper, group = model, shape = model)) +
-   geom_hline(yintercept = 0, linetype = 2) + 
-   geom_errorbar(aes(ymin = lower, ymax = upper, col = sig), width = 0.1, position = position_dodge(width = 0.4)) + 
-   geom_point(fill = "white", position = position_dodge(width = 0.4)) + 
-   facet_grid(. ~ predictors, scales = "free") + 
-   scale_colour_manual(values = myColors) +
-   scale_shape_manual(values=c(21:24)) +
-   labs(color = "Significant", x = "Species", y = "Estimated regression coefficients", shape = "Effect type") + 
-   theme_bw() +
-   theme(axis.text.x = element_text(angle=45, hjust=1), legend.position = "bottom") +
-   coord_flip() +
-   guides(fill = guide_legend(nrow = 2, byrow = TRUE))
-ggsave(file = here("application_butterflies", "plots", "caterpillarcoefficients.pdf"), width = 8, height = 10)
-
-
-#' ## Tile plot of regression coefficients only
-tile_climate <- ggplot(results_dat %>% filter(predictors == "GDD"), #%>% mutate(Estimate2 = ifelse(sig == 1, Estimate, 0)), 
-       aes(x = model, y = species, fill = Estimate)) +
-   geom_tile(linetype = 0) + 
-   geom_tile() +
-   #facet_wrap(. ~ predictors, nrow = 1) +
-   labs(x = "Model", y = "Species", fill = "Estimated \ncoefficients", title = "GDD") +
-   scale_fill_viridis_c() +
-   coord_flip() +
-   theme_bw() +
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-tile_bwoodland <- ggplot(results_dat %>% filter(predictors == "Broadleaved woodland"), #%>% mutate(Estimate2 = ifelse(sig == 1, Estimate, 0)), 
-       aes(x = model, y = species, fill = Estimate)) +
-   geom_tile(linetype = 0) + 
-   geom_tile() +
-   #facet_wrap(. ~ predictors, nrow = 1) +
-   labs(x = "Model", y = "Species", fill = "Estimated \ncoefficients", title = "Broadleaved woodland") +
-   scale_fill_viridis_c() +
-   coord_flip() +
-   theme_bw() +
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-tile_cwoodland <- ggplot(results_dat %>% filter(predictors == "Coniferous woodland"), #%>% mutate(Estimate2 = ifelse(sig == 1, Estimate, 0)), 
-       aes(x = model, y = species, fill = Estimate)) +
-   geom_tile(linetype = 0) + 
-   geom_tile() +
-   #facet_wrap(. ~ predictors, nrow = 1) +
-   labs(x = "Model", y = "Species", fill = "Estimated \ncoefficients", title = "Coniferous woodland") +
-   scale_fill_viridis_c() +
-   coord_flip() +
-   theme_bw() +
-   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-p <- (tile_climate / tile_bwoodland / tile_cwoodland)
-p
-
-ggsave(file = here("application_butterflies", "plots", "tilecoefficients.pdf"), width = 10, height = 12)
-rm(p)
-
-
-results_dat %>% 
-    group_by(predictors, model) %>% 
-    summarise(mean = mean(sig))
-
-
-
-##-------------------------
-#' # Explore results for residual between-species correlation and variance partitioning
-##-------------------------
-summary((eta_SFA$Xbeta + eta_SFA$residual) - (eta_RSFA$Xbeta + eta_RSFA$residual))
-# Checks the linear predictor is the same. Good!
-
-
-varpart_ind <- data.frame(Xbeta = apply(eta_ind$Xbeta, 2, var), LV = eta_ind$residual2) %>% #LV = apply(eta_ind$residual, 2, var)
-    apply(., 1, prop.table) %>% 
-    data.frame
-varpart_SFA <- data.frame(Xbeta = apply(eta_SFA$Xbeta, 2, var), LV = eta_SFA$residual2) %>% #LV = apply(eta_SFA$residual, 2, var)
-    apply(., 1, prop.table) %>% 
-    data.frame
-varpart_RSFA <- data.frame(Xbeta = apply(eta_RSFA$Xbeta, 2, var), LV = eta_RSFA$residual2) %>% #LV = apply(eta_RSFA$residual, 2, var)
-    apply(., 1, prop.table) %>% 
-    data.frame
-colnames(varpart_ind) <- colnames(varpart_SFA) <- colnames(varpart_RSFA) <- colnames(resp_dat)
-
-round(varpart_ind, 3)
-round(varpart_SFA, 3)
-round(varpart_RSFA, 3)
-
-
-# Construct a nice stacked barplot representing the variance partitioning
-v_pretty <- rbind(varpart_ind[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component"), 
-                  varpart_SFA[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component"), 
-                  varpart_RSFA[,order(varpart_SFA[2,])] %>% rownames_to_column(var = "component")) %>% 
-    as.data.frame %>% 
-    mutate(model = rep(c("Independent","SFA","RSFA"), each = 2)) %>% 
-    pivot_longer(-c("component","model"), names_to = "Species") %>% 
-    mutate(Species = fct_inorder(Species), model = fct_inorder(model), component = fct_inorder(component))
-levels(v_pretty$Species) <- spp_names
-levels(v_pretty$component) <- c("Covariates", "Latent factors")
-
-
-ggplot(v_pretty, aes(x = Species, y = value, fill = component)) +
-    geom_bar(position = "stack", stat = "identity") +
-    labs(x = "Species", y = "Proportion", fill = "Model component") + 
-    theme_bw() +
-    facet_wrap(. ~ model, nrow = 4) +
-    scale_fill_viridis_d() +
-    labs(y = "Variance") +
-    theme(legend.position = "bottom", axis.text.x = element_text(angle = 70, hjust = 1))
-ggsave(file = here("application_butterflies", "plots", "variancepartition.pdf"), width = 8, height = 8)
-
-
-par(mfrow = c(2,2))
-corrplot(eta_ind$rescov, type = "lower", diag = FALSE, title = "Independent", mar = c(2,5,2,2))
-corrplot(eta_SFA$rescov, type = "lower", diag = FALSE, title = "SFA", mar = c(2,5,2,2))
-corrplot(eta_RSFA$rescov, type = "lower", diag = FALSE, title = "RSFA", mar = c(2,5,2,2))
-# These empirical residual covariances between all three models are fairly similar though. In fact, and defining the residual correlation as based solely on the loading matrix, SFA and RSFA should produce basically the set of results. However, it is important to acknowledge that such a correlation construct may not make much sense in a *spatial* factor analysis and variation thereof though.
-
-
-
-##-------------------------
-#' # Explore results for model-based residual ordination
-##-------------------------
-
-results_dat <- rbind(lvind_results, lvSFA_results, lvRSFA_results) %>%
+#' ## Plots of point estimates for latent variables
+results_dat <- rbind(lvind_results, lvSFA_results, lvRSFA_results) %>% #lvspplus_results
     as.data.frame()
 colnames(results_dat)[1:num_lv] <- paste("Factor", 1:num_lv)
-results_dat$model <- rep(c("independent", "SFA", "RSFA"), each = nrow(X)) %>% fct_inorder 
+results_dat$model <- rep(c("independent", "SFA", "RSFA"), each = nrow(X)) %>% fct_inorder #"SFA+"
 results_dat$x <- rep(cov_dat$x, 3)
 results_dat$y <- rep(cov_dat$y, 3)
+levels(results_dat$model)[1] <- "Independent"
 
-allcors <- rbind(
-   data.frame(Model = "Independent", LV = paste("Factor", 1:2), cor(lvind_results, X[,-1])), 
-   data.frame(Model = "SFA", LV = paste("Factor", 1:2), cor(lvSFA_results, X[,-1])), 
-   data.frame(Model = "RSFA", LV = paste("Factor", 1:2), cor(lvRSFA_results, X[,-1]))) %>% 
-   pivot_longer(climate:conwood, names_to = "Predictors") %>% 
-   mutate(Predictors = fct_inorder(Predictors), Model = fct_inorder(Model))
-levels(allcors$Predictors) <- c("Climate", "Broadleaved woodland", "Coniferous woodland")
 
-allcors <- allcors %>% 
-    arrange(Predictors, Model, LV) %>% 
-    relocate(Predictors, Model, LV, value) %>% 
-    as.data.frame()
-allcors    
+ggplot(results_dat %>% rename(F1 = "Factor 1", F2 = "Factor 2"), aes(x = F1, y = F2)) +
+    geom_point(color = "lightgrey") +
+    facet_wrap(. ~ model) +
+    theme_bw()
+#ggsave(file = here("application_butterflies", "plots", "unconstrainedordination.pdf"), width = 8, height = 8)
+
+
+ggplot(results_dat %>% pivot_longer("Factor 1":"Factor 2", names_to = "Factor"), aes(x = model, y = value)) +
+    #geom_jitter(color = "lightgrey") +
+    geom_boxplot(notch = TRUE) +
+    ggbeeswarm::geom_quasirandom(color = "lightgrey", method = "pseudorandom", alpha = 0.2) +
+    geom_hline(yintercept = 0, color = "darkblue", linetype = 2) +
+    facet_wrap(. ~ Factor) +
+    theme_bw()
+ggsave(file = here("application_butterflies", "plots", "unconstrainedordination_boxplotLV.pdf"), width = 8, height = 8)
 
 
 results_dat %>% 
@@ -513,55 +382,20 @@ results_dat %>%
     group_by(model, Factor) %>%
     summarise(mean = mean(value) %>% round(3), median = median(value) %>% round(3))
 
-levels(results_dat$model)[1] <- "Independent"
-ggplot(results_dat %>% pivot_longer("Factor 1":"Factor 2", names_to = "Factor"), aes(x = x, y = y, color = value)) + 
+
+ggplot(results_dat %>% pivot_longer("Factor 1":"Factor 2", names_to = "Factor"), aes(x = x, y = y, color = value)) + #%>% filter(model != "SFA+")
     geom_point() +
     scale_color_viridis_c() +
     facet_wrap(Factor ~ model, nrow = 2) +
-   labs(color = "Value") +
+    labs(color = "Value") +
     theme_bw()
-ggsave(file = here("application_butterflies", "plots", "LVwithlongitudelatitude.pdf"), width = 8, height = 8)
-
-
-ordinationp_climate <- ggplot(results_dat %>% 
-           rename(f1 = "Factor 1", f2 = "Factor 2") %>% 
-           left_join(., bind_cols(X[,-1], longlat), by = c("x","y")), aes(x = f1, y = f2, color = climate)) + 
-    geom_point(alpha = 0.8) +
-    scale_color_viridis_c() +
-    labs(color = "GDD", x = "Factor 1", y = "Factor 2") +
-    facet_wrap(. ~ model, nrow = 1) +
-    theme_bw() +
-    theme(legend.position = "bottom")
-
-ordinationp_blwood <- ggplot(results_dat %>% 
-                                  rename(f1 = "Factor 1", f2 = "Factor 2") %>% 
-                                  left_join(., bind_cols(X[,-1], longlat), by = c("x","y")), aes(x = f1, y = f2, color = blwood)) + 
-    geom_point(alpha = 0.8) +
-    scale_color_viridis_c() +
-    labs(color = "Broadleaved woodland", x = "Factor 1", y = "Factor 2") +
-    facet_wrap(. ~ model, nrow = 1) +
-    theme_bw() +
-    theme(legend.position = "bottom")
-
-ordinationp_conwood <- ggplot(results_dat %>% 
-                                  rename(f1 = "Factor 1", f2 = "Factor 2") %>% 
-                                  left_join(., bind_cols(X[,-1], longlat), by = c("x","y")), aes(x = f1, y = f2, color = conwood)) + 
-    geom_point(alpha = 0.8) +
-    scale_color_viridis_c() +
-    labs(color = "Coniferous woodland", x = "Factor 1", y = "Factor 2") +
-    facet_wrap(. ~ model, nrow = 1) +
-    theme_bw() +
-    theme(legend.position = "bottom")
-
-
-p <- ordinationp_climate / ordinationp_blwood / ordinationp_conwood
-ggsave(p, file = here("application_butterflies", "plots", "residualordination.pdf"), width = 12, height = 15)
+ggsave(file = here("application_butterflies", "plots", "unconstrainedordination_LVwithlongitudelatitude.pdf"), width = 8, height = 8)
 
 
 
-##-------------------------
+##----------------------
 sessionInfo()
-##-------------------------
+##----------------------
 # R version 4.1.2 (2021-11-01)
 # Platform: x86_64-pc-linux-gnu (64-bit)
 # Running under: Linux Mint 21.1
@@ -591,3 +425,6 @@ sessionInfo()
 # [41] rlang_1.1.1        grid_4.1.2         nloptr_2.0.3       rstudioapi_0.14    labeling_0.4.2     rmarkdown_2.20     boot_1.3-28        gtable_0.3.3      
 # [49] codetools_0.2-18   reshape_0.8.9      R6_2.5.1           knitr_1.42         fastmap_1.1.1      utf8_1.2.3         rprojroot_2.0.3    ragg_1.2.5        
 # [57] stringi_1.7.12     ggbeeswarm_0.7.2   Rcpp_1.0.10        vctrs_0.6.2        tidyselect_1.2.0   xfun_0.37         
+
+
+
