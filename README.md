@@ -6,15 +6,17 @@
 
 <!-- badges: end -->
 
-This repository code contain template code associated with the manuscript "Spatial Confounding in Joint Species Distribution Models" by [Hui](https://francishui.netlify.app/) and [Hooten](https://stat.utexas.edu/directory/mevin-hooten).
+This repository code contain template code associated with the manuscript "Spatial Confounding in Joint Species Distribution Models" by [Hui](https://francishui.netlify.app/) and [Hooten](https://stat.utexas.edu/directory/mevin-hooten), which is soon to be/currently in review.
+
 
 # Getting started
 
 The following directories are currently available in this repository:
 
--   `models`, which contains `cpp` scripts implementing independent factor analysis and spatial factor analysis/restricted spatial factor analysis (SFA/RSFA), which are subsequently passed into [TMB](https://cran.r-project.org/web/packages/TMB/index.html) for model fitting;
+-   `models`, which contains `cpp` scripts implementing independent factor analysis and spatial factor analysis/restricted spatial factor analysis (SFA/RSFA). These scripts are subsequently passed into [TMB](https://cran.r-project.org/web/packages/TMB/index.html) for model fitting;
 
--   `application_butterflies`, which contains template scripts to for reproducing the case study results on the Great Britian butterfly data in the manuscript. Also contained in this directories is a subfolder `plots` which contains some of the plots available in the manuscript.
+-   `application_butterflies`, which contains template scripts to for reproducing the case study results for the Great Britain butterfly data in the manuscript. Also contained in this directories is a subfolder `plots` which contains some of the plots available in the manuscript.
+
 
 # If you find any bugs and issues...
 
