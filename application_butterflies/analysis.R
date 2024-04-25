@@ -107,7 +107,7 @@ dev.off()
 X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
 num_lv <- 2
 
-filename <- here("models", "TMB_indFA.cpp")
+filename <- "TMB_indFA.cpp"
 modelname <- strsplit(filename, "\\.")[[1]][1]
 compile(filename)
 dyn.load(dynlib(modelname))
@@ -130,7 +130,7 @@ tidbits_random <- c("lvs", "betas")
 objs <- MakeADFun(data = tidbits_data, 
                   parameters = tidbits_parameters, 
                   random = tidbits_random, 
-                  DLL = "TMB_indFA", 
+                  DLL = modelname,
                   hessian = FALSE, 
                   silent = TRUE)
 
@@ -140,7 +140,7 @@ colnames(blank_loadings) <- paste0("LV", 1:num_lv)
 blank_loadings[lower.tri(blank_loadings,diag=TRUE)] <- 1:sum(lower.tri(blank_loadings,diag=TRUE))		
 upperlim <- rep(Inf, length(objs$par))
 lowerlim <- rep(-Inf, length(objs$par))
-lowerlim[grep("loadings",names(objs$par))][diag(blank_loadings)] <- 1e-6 ## Constraints on loading matrix    
+lowerlim[grep("loadings",names(objs$par))][diag(blank_loadings)] <- 1e-3 ## Constraints on loading matrix
 rm(blank_loadings)
 
 
@@ -200,7 +200,7 @@ save(betaind_results,
 X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
 num_lv <- 2
 
-filename <- here("models", "TMB_SFA.cpp")
+filename <- "TMB_SFA.cpp"
 modelname <- strsplit(filename, "\\.")[[1]][1]
 compile(filename)
 dyn.load(dynlib(modelname))
@@ -238,7 +238,7 @@ tidbits_random <- c("lvs", "betas")
 objs <- MakeADFun(data = tidbits_data, 
                   parameters = tidbits_parameters, 
                   random = tidbits_random, 
-                  DLL = "TMB_SFA", 
+                  DLL = modelname,
                   hessian = FALSE, 
                   silent = TRUE)
 
@@ -248,7 +248,7 @@ colnames(blank_loadings) <- paste0("LV", 1:num_lv)
 blank_loadings[lower.tri(blank_loadings,diag=TRUE)] <- 1:sum(lower.tri(blank_loadings,diag=TRUE))		
 upperlim <- rep(Inf, length(objs$par))
 lowerlim <- rep(-Inf, length(objs$par))
-lowerlim[grep("loadings",names(objs$par))][diag(blank_loadings)] <- 1e-6 ## Constraints on loading matrix    
+lowerlim[grep("loadings",names(objs$par))][diag(blank_loadings)] <- 1e-3 ## Constraints on loading matrix
 rm(blank_loadings)
 
 
@@ -560,34 +560,81 @@ ggsave(p, file = here("application_butterflies", "plots", "residualordination.pd
 
 
 ##-------------------------
-sessionInfo()
+sessioninfo::session_info()
 ##-------------------------
-# R version 4.1.2 (2021-11-01)
-# Platform: x86_64-pc-linux-gnu (64-bit)
-# Running under: Linux Mint 21.1
+# ─ Session info ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# setting  value
+# version  R version 4.1.2 (2021-11-01)
+# os       Linux Mint 21.1
+# system   x86_64, linux-gnu
+# ui       RStudio
+# language en_AU:en
+# collate  en_AU.UTF-8
+# ctype    en_AU.UTF-8
+# tz       Australia/Sydney
+# date     2024-04-25
+# rstudio  2023.06.1+524 Mountain Hydrangea (desktop)
+# pandoc   NA
 # 
-# Matrix products: default
-# BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.10.0
-# LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.10.0
+# ─ Packages ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# package     * version     date (UTC) lib source
+# boot          1.3-28      2021-05-03 [4] CRAN (R 4.1.1)
+# class         7.3-20      2022-01-13 [4] CRAN (R 4.1.2)
+# classInt      0.4-8       2022-09-29 [1] CRAN (R 4.1.2)
+# cli           3.6.2       2023-12-11 [1] CRAN (R 4.1.2)
+# codetools     0.2-18      2020-11-04 [4] CRAN (R 4.0.3)
+# colorspace    2.1-0       2023-01-23 [1] CRAN (R 4.1.2)
+# corrplot    * 0.92        2021-11-18 [1] CRAN (R 4.1.2)
+# DBI           1.1.3       2022-06-18 [1] CRAN (R 4.1.2)
+# DHARMa      * 0.4.6       2022-09-08 [1] CRAN (R 4.1.2)
+# doParallel  * 1.0.17      2022-02-07 [1] CRAN (R 4.1.2)
+# dplyr         1.1.2       2023-04-20 [1] CRAN (R 4.1.2)
+# e1071         1.7-13      2023-02-01 [1] CRAN (R 4.1.2)
+# fansi         1.0.6       2023-12-08 [1] CRAN (R 4.1.2)
+# fmesher       0.1.5       2023-12-20 [1] CRAN (R 4.1.2)
+# foreach     * 1.5.2       2022-02-02 [1] CRAN (R 4.1.2)
+# generics      0.1.3       2022-07-05 [1] CRAN (R 4.1.2)
+# ggplot2       3.4.3       2023-08-14 [1] CRAN (R 4.1.2)
+# glue          1.7.0       2024-01-09 [1] CRAN (R 4.1.2)
+# gtable        0.3.4       2023-08-21 [1] CRAN (R 4.1.2)
+# here        * 1.0.1       2020-12-13 [1] CRAN (R 4.1.2)
+# INLA        * 24.02.09    2024-02-09 [1] local
+# iterators   * 1.0.14      2022-02-05 [1] CRAN (R 4.1.2)
+# KernSmooth    2.23-20     2021-05-03 [4] CRAN (R 4.0.4)
+# lattice       0.20-45     2021-09-22 [4] CRAN (R 4.1.1)
+# lifecycle     1.0.4       2023-11-07 [1] CRAN (R 4.1.2)
+# lme4          1.1-34.9000 2023-08-25 [1] Github (lme4/lme4@ff5ecd0)
+# magrittr      2.0.3       2022-03-30 [1] CRAN (R 4.1.2)
+# MASS          7.3-55      2022-01-13 [4] CRAN (R 4.1.2)
+# Matrix      * 1.6-1       2023-08-14 [1] CRAN (R 4.1.2)
+# minqa         1.2.5       2022-10-19 [1] CRAN (R 4.1.2)
+# munsell       0.5.0       2018-06-12 [1] CRAN (R 4.1.2)
+# nlme          3.1-162     2023-01-31 [1] CRAN (R 4.1.2)
+# nloptr        2.0.3       2022-05-26 [1] CRAN (R 4.1.2)
+# patchwork   * 1.1.2       2022-08-19 [1] CRAN (R 4.1.2)
+# pillar        1.9.0       2023-03-22 [1] CRAN (R 4.1.2)
+# pkgconfig     2.0.3       2019-09-22 [1] CRAN (R 4.1.2)
+# proxy         0.4-27      2022-06-09 [1] CRAN (R 4.1.2)
+# R6            2.5.1       2021-08-19 [1] CRAN (R 4.1.2)
+# Rcpp          1.0.12      2024-01-09 [1] CRAN (R 4.1.2)
+# rlang         1.1.3       2024-01-10 [1] CRAN (R 4.1.2)
+# rprojroot     2.0.4       2023-11-05 [1] CRAN (R 4.1.2)
+# rstudioapi    0.15.0      2023-07-07 [1] CRAN (R 4.1.2)
+# scales        1.2.1       2022-08-20 [1] CRAN (R 4.1.2)
+# sessioninfo   1.2.2       2021-12-06 [1] CRAN (R 4.1.2)
+# sf            1.0-9       2022-11-08 [1] CRAN (R 4.1.2)
+# sp          * 2.1-3       2024-01-30 [1] CRAN (R 4.1.2)
+# tibble        3.2.1       2023-03-20 [1] CRAN (R 4.1.2)
+# tidyselect    1.2.0       2022-10-10 [1] CRAN (R 4.1.2)
+# TMB         * 1.9.9       2023-11-28 [1] CRAN (R 4.1.2)
+# units         0.8-1       2022-12-10 [1] CRAN (R 4.1.2)
+# utf8          1.2.4       2023-10-22 [1] CRAN (R 4.1.2)
+# vctrs         0.6.5       2023-12-01 [1] CRAN (R 4.1.2)
+# withr         3.0.0       2024-01-16 [1] CRAN (R 4.1.2)
 # 
-# locale:
-# [1] LC_CTYPE=en_AU.UTF-8       LC_NUMERIC=C               LC_TIME=en_AU.UTF-8        LC_COLLATE=en_AU.UTF-8     LC_MONETARY=en_AU.UTF-8    LC_MESSAGES=en_AU.UTF-8   
-# [7] LC_PAPER=en_AU.UTF-8       LC_NAME=C                  LC_ADDRESS=C               LC_TELEPHONE=C             LC_MEASUREMENT=en_AU.UTF-8 LC_IDENTIFICATION=C       
+# [1] /home/fkch/R/x86_64-pc-linux-gnu-library/4.1
+# [2] /usr/local/lib/R/site-library
+# [3] /usr/lib/R/site-library
+# [4] /usr/lib/R/library
 # 
-# attached base packages:
-#     [1] parallel  stats     graphics  grDevices utils     datasets  methods   base     
-# 
-# other attached packages:
-# [1] here_1.0.1        mustashe_0.1.4    kableExtra_1.3.4  corrplot_0.92     doParallel_1.0.17 iterators_1.0.14  mgcv_1.9-0        nlme_3.1-155      DHARMa_0.4.6     
-# [10] INLA_22.12.16     sp_1.6-0          foreach_1.5.2     Matrix_1.5-3      TMB_1.9.2         patchwork_1.1.2   lubridate_1.9.2   forcats_1.0.0     stringr_1.5.0    
-# [19] dplyr_1.1.2       purrr_1.0.1       readr_2.1.4       tidyr_1.3.0       tibble_3.2.1      ggplot2_3.4.2     tidyverse_2.0.0  
-# 
-# loaded via a namespace (and not attached):
-# [1] httr_1.4.5         viridisLite_0.4.2  splines_4.1.2      vipor_0.4.5        pillar_1.9.0       lattice_0.20-45    glue_1.6.2         digest_0.6.31     
-# [9] RColorBrewer_1.1-3 rvest_1.0.3        minqa_1.2.5        colorspace_2.1-0   htmltools_0.5.4    plyr_1.8.8         pkgconfig_2.0.3    scales_1.2.1      
-# [17] webshot_0.5.5      svglite_2.1.1      tzdb_0.3.0         lme4_1.1-33        timechange_0.2.0   generics_0.1.3     farver_2.1.1       ellipsis_0.3.2    
-# [25] withr_2.5.0        cli_3.6.1          magrittr_2.0.3     evaluate_0.21      GGally_2.1.2       fansi_1.0.4        MASS_7.3-55        xml2_1.3.3        
-# [33] beeswarm_0.4.0     textshaping_0.3.6  tools_4.1.2        hms_1.1.2          lifecycle_1.0.3    munsell_0.5.0      compiler_4.1.2     systemfonts_1.0.4 
-# [41] rlang_1.1.1        grid_4.1.2         nloptr_2.0.3       rstudioapi_0.14    labeling_0.4.2     rmarkdown_2.20     boot_1.3-28        gtable_0.3.3      
-# [49] codetools_0.2-18   reshape_0.8.9      R6_2.5.1           knitr_1.42         fastmap_1.1.1      utf8_1.2.3         rprojroot_2.0.3    ragg_1.2.5        
-# [57] stringi_1.7.12     ggbeeswarm_0.7.2   Rcpp_1.0.10        vctrs_0.6.2        tidyselect_1.2.0   xfun_0.37         
+# ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
