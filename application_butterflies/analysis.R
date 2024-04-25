@@ -4,7 +4,7 @@
 #' date: Code started July 2023
 #' ---
 
-#' # In preparation for takeoff
+#' # In preparation for takeoff...
 #' 
 #' The data are sourced from [Wilkinson et al., (2019)](https://doi.org/10.1111/2041-210X.13106) and are publicly available from (https://zenodo.org/records/1452066) under `Datasets/Butterflies` with three files"
 #' - Butterfly_PA.csv
@@ -50,7 +50,7 @@ cov_dat <- cov_dat %>%
     mutate(conwood = scale(cov_dat$conwood) %>% as.vector) # Note growing degree days (climate) has already been standardized
 str(cov_dat) 
 
-summary(cov_dat) # Note latitude and longitudes have been scaled and so do not make sense here; so treat them as Euclidean coordinates/distance metric, as per https://doi.org/10.1111/2041-210X.13106
+summary(cov_dat) #' Note latitude and longitudes have been scaled and so do not make sense here; so treat them as Euclidean coordinates/distance metric, as per https://doi.org/10.1111/2041-210X.13106
 boxplot(cov_dat)
 
 
@@ -76,7 +76,7 @@ ggplot(cov_datlong, aes(x = x, y = y, color = value)) +
 ggsave(file = here("application_butterflies", "plots", "covariates.pdf"), width = 8, height = 4)
 
 
-ggplot(cbind(longlat, resp_dat)  %>% pivot_longer(-(x:y), names_to = "species"), aes(x = x, y = y, color = value %>% factor)) +
+ggplot(cbind(longlat, resp_dat) %>% pivot_longer(-(x:y), names_to = "species"), aes(x = x, y = y, color = value %>% factor)) +
     geom_point() +
     facet_wrap(. ~ species, nrow = 4, scales = "free") +
     scale_color_viridis_d() +
@@ -102,6 +102,7 @@ dev.off()
 ##-------------------------
 #' # Prepare objects and fit independent GLLVM 
 #' Fitting is done using Template Model Builder (TMB) -- Maximum likelihood estimation via TMB of the Laplace approximated log-likelihood.
+#' Species-specific random slopes are assumed for the observed covariate effects to stabilize fitting, although this has relatively minimal impact on the overall conclusions regarding spatial confounding.
 ##-------------------------
 X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
 num_lv <- 2
@@ -195,6 +196,7 @@ save(betaind_results,
 #' # Prepare objects and fit spatial factor analytic (SFA) model. 
 #' Fitting is done using Template Model Builder (TMB). Since the spatial domain is not very large (Grampians national park) and given the scaling that has taken place prior to accessing the data, then Euclidean coordinates are assumed. 
 #' Maximum likelihood estimation via TMB of the Laplace approximated log-likelihood, where the Matern covariance is approximated using a SPDE approach.
+#' Species-specific random slopes are assumed for the observed covariate effects to stabilize fitting, although this has relatively minimal impact on the overall conclusions regarding spatial confounding.
 ##-------------------------
 X <- model.matrix(~ climate + blwood + conwood, data = cov_dat) 
 num_lv <- 2
@@ -277,7 +279,6 @@ betaRSFA_results$lower <- betaRSFA_results$Estimate - qnorm(1-ci_alpha/2) * beta
 betaRSFA_results$upper <- betaRSFA_results$Estimate + qnorm(1-ci_alpha/2) * betaRSFA_results$Std
 rownames(betaRSFA_results) <- paste0(rep(colnames(tidbits_data$y), ncol(X)), ":", rep(colnames(X), each = ncol(tidbits_data$y)))
 colnames(betaRSFA_results) <- c("Estimate", "StdErr", "z_value", "P_val", "lower", "upper") 
-
 
 alphaSFA_results <- data.frame(all_results[grep("alpha$", rownames(all_results)),])
 alphaSFA_results$lower <- alphaSFA_results$Estimate - qnorm(1-ci_alpha/2) * alphaSFA_results$Std
@@ -484,7 +485,6 @@ corrplot(eta_RSFA$rescov, type = "lower", diag = FALSE, title = "RSFA", mar = c(
 ##-------------------------
 #' # Explore results for model-based residual ordination
 ##-------------------------
-
 results_dat <- rbind(lvind_results, lvSFA_results, lvRSFA_results) %>%
     as.data.frame()
 colnames(results_dat)[1:num_lv] <- paste("Factor", 1:num_lv)
