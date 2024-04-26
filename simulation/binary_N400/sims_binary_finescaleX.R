@@ -322,7 +322,6 @@ num_datasets <- 200
 foreach(k1 = 1:num_datasets) %dopar% simfn(NAI = k1, scale_X = 0)
 foreach(k1 = 1:num_datasets) %dopar% simfn(NAI = k1, scale_X = 0.5)
 foreach(k1 = 1:num_datasets) %dopar% simfn(NAI = k1, scale_X = 1)
-foreach(k1 = 1:num_datasets) %dopar% simfn(NAI = k1, scale_X = 2)
 
 
 
@@ -331,7 +330,7 @@ foreach(k1 = 1:num_datasets) %dopar% simfn(NAI = k1, scale_X = 2)
 #' # Assessment of results
 ##------------------------------
 num_datasets <- 200
-scale_X_seq <- c(0,0.5,1,2)
+scale_X_seq <- c(0,0.5,1)
 
 all_diff_X_coefficients <- all_coverage_X_coefficients <- all_length_X_coefficients <- array(NA, 
                                                                                              dim = c(num_datasets, length(scale_X_seq), num_spp, 3),
