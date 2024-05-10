@@ -68,7 +68,7 @@ ggplot(covariate_datlatlong, aes(x = Longitude, y = Latitude, color = value)) +
     scale_color_viridis_c() +
     labs(color = "Value") +
     theme_bw()
-ggsave(file = here("application_SOCPR", "plots", "covariates.pdf"), width = 8, height = 4)
+ggsave(file = here("application_SOCPR", "plots", "covariates.pdf"), width = 15, height = 6)
 
 
 ggplot(cbind(covariate_dat %>% select(Longitude:Latitude), resp_dat) %>% 
