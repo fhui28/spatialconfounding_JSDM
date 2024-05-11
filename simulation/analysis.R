@@ -29,7 +29,7 @@ num_spp <- 10
 num_datasets <- 200
 scale_X_seq <- c(0,0.5,1)
 response_seq <- c("binary", "negbin", "tweedie")
-scalecovariate_seq <- c("Coarse-scale covariate", "Fine-scale covariate")
+scalecovariate_seq <- c("Coarse-scale observed covariate", "Fine-scale observed covariate")
 
 bias_results <- RMSE_results <- ci_results <- intervallength_results <- array(NA, 
                                                                               dim = c(3, 2, length(scale_X_seq), num_spp, 3),
@@ -156,7 +156,7 @@ p_bias <- ggplot(bias_results %>%
     facet_wrap(. ~ scalecovariate, nrow = 1) +
     scale_fill_viridis_d() +
     scale_y_log10() +
-    labs(x = "Scaling factor for unobserved covariate", y = "Absolute bias", fill = "Methods") +
+    labs(x = expression(Constant~C[0]), y = "Absolute bias", fill = "Methods") +
     theme_bw()
 
 
@@ -170,7 +170,7 @@ p_rmse <- ggplot(RMSE_results %>%
     geom_boxplot(color = "blueviolet") +
     facet_wrap(. ~ scalecovariate, nrow = 1) +
     scale_fill_viridis_d() +
-    labs(x = "Scaling factor for unobserved covariate", y = "RMSE", linetype = "Methods", fill = "Methods") +
+    labs(x = expression(Constant~C[0]), y = "RMSE", linetype = "Methods", fill = "Methods") +
     scale_y_log10() +
     theme_bw()
 
@@ -186,7 +186,7 @@ p_ci <- ggplot(ci_results %>%
     geom_boxplot(color = "blueviolet") +
     facet_wrap(. ~ scalecovariate, nrow = 1) +
     scale_fill_viridis_d() +
-    labs(x = "Scaling factor for unobserved covariate", y = "Coverage probability", fill = "Methods") +
+    labs(x = expression(Constant~C[0]), y = "Coverage probability", fill = "Methods") +
     theme_bw()
 
 p_intervalwidth <- ggplot(intervallength_results %>% 
@@ -200,7 +200,7 @@ p_intervalwidth <- ggplot(intervallength_results %>%
     facet_wrap(. ~ scalecovariate, nrow = 1, scales = "free_y") +
     scale_fill_viridis_d() +
     scale_y_log10() +
-    labs(x = "Scaling factor for unobserved covariate", y = "Mean interval width", fill = "Methods") +
+    labs(x = expression(Constant~C[0]), y = "Mean interval width", fill = "Methods") +
     theme_bw()
 
 
@@ -215,7 +215,7 @@ p_lverr <- ggplot(LVerror_results %>%
     facet_wrap(. ~ scalecovariate, nrow = 1) +
     scale_fill_viridis_d() +
     scale_y_log10() +
-    labs(x = "Scaling factor for unobserved covariate", y = "Procrustes error", fill = "Methods") +
+    labs(x = expression(Constant~C[0]), y = "Procrustes error", fill = "Methods") +
     theme_bw()
 
 
@@ -229,7 +229,7 @@ p_lvXcor <- ggplot(LV_X_correlation_results %>%
     geom_boxplot(color = "blueviolet") +
     facet_wrap(. ~ scalecovariate, nrow = 1) +
     scale_fill_viridis_d() +
-    labs(x = "Scaling factor for unobserved covariate", y = "Max. correlation between LV and covariate", fill = "Methods") +
+    labs(x = expression(Constant~C[0]), y = "Max. correlation between LV and covariate", fill = "Methods") +
     theme_bw()
 
 
