@@ -81,7 +81,7 @@ simfn <- function(NAI, scale_X = 0) {
     
     #' ### Construct "true" unrestricted species-specific coefficients for the dataset, as well as the true residual ordination.
     full_X_coefficients <- X_coefficients + t(lm(cbind(z1,z2) ~ climate, data = cov_dat)$coef %*% t(Z_coefficients))
-    res_ZonX <- lm(cbind(z1,z2) ~ climate, data = cov_dat) %>% residuals 
+    res_ZonX <- lm(cbind(z1,z2) ~ climate, data = cov_dat) %>% residuals
 
 
     simdat <- simdat_jsdm_simple(family = "tweedie",
