@@ -24,8 +24,8 @@ The following directories are currently available in this repository:
     -   Two `cpp` scripts implementing independent factor analysis and spatial factor analysis/restricted spatial factor analysis (SFA/RSFA); these scripts are subsequently passed into [TMB](https://cran.r-project.org/web/packages/TMB/index.html) for model fitting;
     -   A subfolder `plots` containing some of the plots available in the manuscript.
 -   `application_SOCPR`, which contains template scripts to for reproducing the case study results for the Southern Ocean Continuous Plankton Recorder survey data in the manuscript. Also contained are:
-    -   Two `cpp` scripts implementing independent factor analysis and spatial factor analysis/restricted spatial factor analysis (SFA/RSFA); these scripts are subsequently passed into [TMB](https://cran.r-project.org/web/packages/TMB/index.html) for model fitting; 
-    - A `socpr_reduced.RData` file that contains contains synthetic version of the data;
+    -   Two `cpp` scripts implementing independent factor analysis and spatial factor analysis/restricted spatial factor analysis (SFA/RSFA); these scripts are subsequently passed into [TMB](https://cran.r-project.org/web/packages/TMB/index.html) for model fitting;
+    -   A `socpr_reduced.RData` file that contains contains synthetic version of the data;
     -   A subfolder `plots` containing some of the plots available in the manuscript.
 
 The simulation results for $N = 1000$ can be produced by straightforwardly modifying the `R` scripts in the `simulation` folder.
