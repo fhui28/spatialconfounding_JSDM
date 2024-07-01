@@ -37,5 +37,3 @@ If you find something that looks like a bug/issue, please use Github issues and 
 1.  A description of the bug/issue;
 2.  Paste-able code along with some comments that reproduces the problem e.g., using the [reprex](https://cran.r-project.org/web/packages/reprex/index.html) package. If you also have an idea of how to fix the problem, then that is also much appreciated.
 3.  Required data files etc...
-
-For all other issues, please contact the corresponding author at [francis.hui\@anu.edu.au](mailto:francis.hui@anu.edu.au)
