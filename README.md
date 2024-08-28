@@ -6,7 +6,7 @@
 
 <!-- badges: end -->
 
-This repository code contain template code associated with the article "Spatial Confounding in Joint Species Distribution Models" by [Francis KC Hui](https://francishui.netlify.app/), [Quan Vu](https://sites.google.com/view/quanvu/home), and [Mevin B Hooten](https://stat.utexas.edu/directory/mevin-hooten), which is currently in review.
+This repository code contain template code associated with the article "Spatial Confounding in Joint Species Distribution Models" by [Francis KC Hui](https://francishui.netlify.app/), [Quan Vu](https://sites.google.com/view/quanvu/home), and [Mevin B Hooten](https://stat.utexas.edu/directory/mevin-hooten), which is accepted for publication in [Methods in Ecology and Evolution](https://besjournals.onlinelibrary.wiley.com/journal/2041210x).
 
 # Getting started
 
