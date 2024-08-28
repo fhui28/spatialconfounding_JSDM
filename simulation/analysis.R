@@ -1,6 +1,6 @@
 #' ---
 #' title: Analysis of simulation results 
-#' author: xxx
+#' author: Francis KC Hui
 #' date: Code started April 2024
 #' ---
 

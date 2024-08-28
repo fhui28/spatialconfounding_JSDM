@@ -1,6 +1,6 @@
 #' ---
 #' title: Simulations for spatial confounding in joint species distribution models -- Negative binomial responses
-#' author: xxx
+#' author: Francis KC Hui
 #' date: Code started April 2024
 #' ---
 

@@ -1,6 +1,6 @@
 #' ---
 #' title: Simulations for spatial confounding in joint species distribution models -- Tweedie responses where the observed covariates are now fine scaled, compared to the residual component of the unobserved covariate.
-#' author: xxx
+#' author: Francis KC Hui
 #' date: Code started April 2024
 #' ---
 

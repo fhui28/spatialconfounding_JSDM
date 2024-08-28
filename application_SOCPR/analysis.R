@@ -1,6 +1,6 @@
 #' ---
 #' title: Analysis of SO-CPR count data from Hui (2020) using spatial factor analytic models. 
-#' author: xxx
+#' author: Francis KC Hui
 #' date: Code started April 2024
 #' ---
 

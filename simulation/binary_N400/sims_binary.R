@@ -1,6 +1,6 @@
 #' ---
 #' title: Simulations for spatial confounding in joint species distribution models -- Binary responses
-#' author: xxx
+#' author: Francis KC Hui
 #' date: Code started April 2024
 #' ---
 

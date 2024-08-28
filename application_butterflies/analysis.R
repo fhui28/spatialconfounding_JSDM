@@ -1,6 +1,6 @@
 #' ---
 #' title: Analysis of Butterflies data from Ovaskainen et al., (2016) using factor analytic models to explore the presence and impacts of spatial confounding.
-#' author: xxx
+#' author: Francis KC Hui
 #' date: Code started July 2023
 #' ---
 
